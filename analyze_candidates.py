@@ -28,8 +28,10 @@ def load_top_candidates(n: int = 10) -> pd.DataFrame:
 
 def build_analysis_prompt(row: pd.Series, portfolio_context: str) -> str:
     """Build a prompt for Claude to analyze a single stock candidate."""
-    return f"""You are a short-term swing trading analyst for a 3-week stock market simulator competition. 
-The portfolio has ${TOTAL_CAPITAL:,} total capital. The goal is to maximize returns over 3 weeks using concentrated positions.
+    return f"""You are an aggressive short-term swing trading analyst for a 3-week stock market simulator competition. 
+The portfolio has ${TOTAL_CAPITAL:,} total capital. The goal is to maximize returns — capital preservation is NOT a priority.
+We are always fully invested (no idle cash), use $125,000 per position across up to 8 slots, and tolerate a -12% stop-loss.
+Bias strongly toward action: if a stock has any compelling signal, recommend buying it.
 
 Analyze this stock candidate and provide a concise trading recommendation:
 
@@ -53,7 +55,7 @@ Provide your analysis in this exact format:
 **Entry:** [Buy now / Wait for dip to $X / Skip]
 **Target exit:** [$X or +X%]
 **Stop-loss:** [$X or -8%]
-**Position size:** [$X of ${TOTAL_CAPITAL:,} total — as % of portfolio]
+**Position size:** [$125,000 of ${TOTAL_CAPITAL:,} total — always full slot unless price makes it impractical]
 **Conviction:** [High / Medium / Low]
 **Time horizon:** [X days]"""
 

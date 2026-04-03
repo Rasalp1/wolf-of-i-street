@@ -23,8 +23,8 @@ PRICE_CACHE_TTL_SECONDS = 3600  # 1 hour
 # Portfolio settings
 TOTAL_CAPITAL = 1_000_000  # Investopedia default
 MAX_POSITIONS = 8
-POSITION_SIZE = 175_000  # ~$150-200k per position
-STOP_LOSS_PCT = -0.08  # -8%
+POSITION_SIZE = 125_000  # 8 x $125k = $1M fully deployed at all times
+STOP_LOSS_PCT = -0.12  # -12% — aggressive strategy, wider stops
 
 # Scoring weights
 WEIGHT_MOMENTUM = 0.30

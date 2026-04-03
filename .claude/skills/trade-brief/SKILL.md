@@ -32,8 +32,11 @@ This skill orchestrates the full daily loop in one go.
    List the top 5 from the screener with ticker, price, composite score, and which bucket they fall in.
 
    ### 🎯 Recommended Trades
-   Up to 3 specific action items ranked by conviction:
-   - **BUY [TICKER]** — [1-line thesis] | Size: $[X] ([N] shares @ $[price]) | Target: +[X]% | Stop: -8%
+   **Strategy: always fully deployed. Never hold idle cash. This is a 3-week competition.**
+   With $1M and $125k per position, target **8 concurrent positions = $1M fully deployed**.
+   Fill every open slot. The only reason to skip a candidate is composite score below 0.45 or direct duplicate sector overlap with an existing position.
+   If fewer than 8 good candidates exist, use the best available — do not leave cash idle.
+   - **BUY [TICKER]** — [1-line thesis] | Size: $125,000 ([N] shares @ $[price]) | Target: +[X]% | Stop: -12%
 
    ### 💼 Portfolio Status
    - Total value: $[X] ([+/-X]% vs start)
