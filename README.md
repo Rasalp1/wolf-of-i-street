@@ -8,18 +8,22 @@ An AI-powered daily stock screening and analysis system for the Investopedia Sto
 # 1. Install dependencies
 pip3 install -r requirements.txt
 
-# 2. Add API keys (Alpha Vantage is free; Anthropic required for analysis)
+# 2. Set up .env (all keys are optional)
 cp .env.example .env
-# Open .env and fill in your keys
+# Open .env and fill in any keys you have
 ```
 
-| Service | Purpose | Free? | Get Key |
-|---------|---------|-------|---------|
-| Alpha Vantage | News sentiment + technicals | ✅ Free | https://www.alphavantage.co/support/#api-key |
-| Anthropic | Claude candidate analysis | Paid | https://console.anthropic.com/ |
-| NewsAPI | Fallback sentiment source | ✅ Free tier | https://newsapi.org/ |
+| Service | Purpose | Optional? | Get Key |
+|---------|---------|-----------|---------|
+| Alpha Vantage | News sentiment + technicals | ✅ Optional | https://www.alphavantage.co/support/#api-key |
+| Anthropic | Direct API calls from scripts | ✅ Optional* | https://console.anthropic.com/ |
+| NewsAPI | Fallback sentiment source | ✅ Optional | https://newsapi.org/ |
 
-The screener works **without any API keys** using yfinance alone. Keys add sentiment scoring and richer analysis.
+**Key points:**
+- The screener works **without any keys** — yfinance provides price/volume/RSI data freely.
+- **Using Claude Code?** You don't need Anthropic. The scripts fall back to a template briefing, and you analyze candidates interactively in the chat.
+- **Running scripts standalone?** Add an Anthropic key if you want the scripts to call Claude directly. Otherwise you get rule-based analysis.
+- Alpha Vantage adds news sentiment scoring (optional; free tier available).
 
 ---
 
@@ -47,9 +51,9 @@ Scans all S&P 500 stocks and ranks them by composite score. Takes 2–4 minutes.
 **What it produces:** `output/screener_results.csv` — one row per stock, ranked by composite score.
 
 #### `/analyze-candidates`
-Takes the top 10 from the latest screener run and asks Claude to evaluate each one: trade thesis, key risks, entry/exit levels, and recommended position size. Requires `screener_results.csv` to exist.
+Takes the top 10 from the latest screener run and generates a structured briefing. Requires `screener_results.csv` to exist.
 
-**What it produces:** `output/morning_briefing.md` — a structured briefing you can read or ask Claude to summarise.
+**What it produces:** `output/morning_briefing.md` — a template briefing with score breakdowns and rule-based thesis for each candidate. You can read this directly or ask Claude (the one you're chatting with) to elaborate on any picks.
 
 #### `/portfolio-review`
 Check your live P&L and record trades after you've executed them on Investopedia.
