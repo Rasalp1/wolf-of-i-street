@@ -67,6 +67,34 @@ record the sell — tell Claude: "I sold NVDA at 200.00"
 
 ---
 
+## The feedback loop
+
+This system has one manual step: you execute trades on Investopedia yourself, then tell the system what you did. Everything else is automated.
+
+**The only two things you ever report back:**
+
+| Event | Command |
+|-------|---------|
+| Bought a stock on Investopedia | `python3 portfolio_tracker.py buy TICKER SHARES PRICE` |
+| Sold a stock on Investopedia | `python3 portfolio_tracker.py sell TICKER PRICE` |
+
+**What happens when you record a trade:**
+- The position is written to `output/portfolio.json` with your fill price, share count, and entry date
+- Cash is adjusted accordingly
+- Averaging in to an existing position recalculates a blended cost basis automatically
+
+**How it feeds back into analysis:**
+Every time `analyze_candidates.py` runs, it reads `portfolio.json` first and passes your current positions as context into each Claude prompt. This means Claude knows what you already hold — it avoids recommending duplicates, flags sector concentration, and sizes new recommendations against your remaining cash.
+
+**What the system never does:**
+- It does not place or cancel trades — Investopedia has no API
+- It does not read your Investopedia account balance
+- Prices in `portfolio.json` are always your reported fill prices, not fetched automatically
+
+The feedback loop in one line: **Investopedia → you → `portfolio_tracker.py` → `portfolio.json` → next morning's analysis.**
+
+---
+
 ## Interpreting results
 
 ### Screener scores (`screener_results.csv`)
