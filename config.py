@@ -8,9 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -18,6 +17,8 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 PORTFOLIO_FILE = OUTPUT_DIR / "portfolio.json"
 SCREENER_CSV = OUTPUT_DIR / "screener_results.csv"
 BRIEFING_FILE = OUTPUT_DIR / "morning_briefing.md"
+PRICE_CACHE_FILE = OUTPUT_DIR / "price_cache.pkl"
+PRICE_CACHE_TTL_SECONDS = 3600  # 1 hour
 
 # Portfolio settings
 TOTAL_CAPITAL = 1_000_000  # Investopedia default

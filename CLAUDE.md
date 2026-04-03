@@ -22,11 +22,10 @@ pip3 install -r requirements.txt
 ```
 
 API keys live in `.env` (see `.env.example`). Required keys:
-- `ALPHA_VANTAGE_API_KEY` — free at alphavantage.co; used for RSI, technicals, news sentiment
+- `FINNHUB_API_KEY` — free at finnhub.io; used for earnings calendar and news sentiment (60 req/min, no daily cap)
 - `ANTHROPIC_API_KEY` — for Claude candidate analysis
-- `NEWS_API_KEY` — optional fallback for sentiment (newsapi.org free tier)
 
-The screener runs fine with **no API keys** using yfinance alone. API keys add news sentiment scoring.
+The screener runs fine with **no API keys** using yfinance alone. The Finnhub key enables both the earnings proximity signal and sentiment scoring.
 
 ## Portfolio rules (always enforce these)
 
@@ -47,7 +46,7 @@ Each S&P 500 stock is scored on five signals weighted as follows:
 | Volume surge | 20% | Today's volume vs 30-day average |
 | RSI | 20% | Sweet spot 55–75 (bullish, not overbought) |
 | Earnings proximity | 15% | 1.0 = earnings in 2–5 days (sweet spot for run-up) |
-| News sentiment | 15% | Alpha Vantage or NewsAPI score |
+| News sentiment | 15% | Finnhub company news, keyword-scored |
 
 Weights are configurable in `config.py`.
 
@@ -61,10 +60,9 @@ Weights are configurable in `config.py`.
 
 | Source | Library / API | What it provides |
 |--------|--------------|-----------------|
-| Yahoo Finance | `yfinance` (no key) | Prices, volume, earnings calendar |
-| Alpha Vantage | REST API + key | Technicals (RSI, MACD), news sentiment |
+| Yahoo Finance | `yfinance` (no key) | Prices, volume, RSI |
+| Finnhub | REST API + key | Earnings calendar, company news sentiment |
 | S&P 500 universe | Wikipedia (no key) | Ticker list via `pd.read_html` |
-| NewsAPI | REST API + key | Headline sentiment (optional) |
 
 ## Daily workflow
 

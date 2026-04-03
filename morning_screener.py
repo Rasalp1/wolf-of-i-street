@@ -1,7 +1,7 @@
 """
 morning_screener.py — Daily stock screener
 
-Pulls data from yfinance + Alpha Vantage for S&P 500 stocks.
+Pulls data from yfinance + Finnhub for S&P 500 stocks.
 Scores each stock on: momentum, volume surge, RSI, upcoming earnings, sentiment.
 Outputs a ranked CSV to output/screener_results.csv.
 """
@@ -9,15 +9,21 @@ Outputs a ranked CSV to output/screener_results.csv.
 import sys
 import time
 import datetime as dt
+import pickle
+from io import StringIO
 
+import urllib3
 import pandas as pd
 import requests
 import yfinance as yf
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 from config import (
-    ALPHA_VANTAGE_API_KEY,
-    NEWS_API_KEY,
+    FINNHUB_API_KEY,
     SCREENER_CSV,
+    PRICE_CACHE_FILE,
+    PRICE_CACHE_TTL_SECONDS,
     WEIGHT_MOMENTUM,
     WEIGHT_VOLUME,
     WEIGHT_RSI,
@@ -34,7 +40,10 @@ def get_sp500_tickers() -> list[str]:
     """Fetch current S&P 500 tickers from Wikipedia."""
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     try:
-        tables = pd.read_html(url)
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; WolfOfIStreet/1.0)"}
+        resp = requests.get(url, headers=headers, timeout=15, verify=False)
+        resp.raise_for_status()
+        tables = pd.read_html(StringIO(resp.text))
         df = tables[0]
         tickers = df["Symbol"].str.replace(".", "-", regex=False).tolist()
         return tickers
@@ -56,7 +65,15 @@ def get_sp500_tickers() -> list[str]:
 # ---------------------------------------------------------------------------
 
 def fetch_yfinance_data(tickers: list[str]) -> pd.DataFrame:
-    """Bulk-download price/volume data via yfinance."""
+    """Bulk-download price/volume data via yfinance, with 1-hour local cache."""
+    # Check for a fresh cache
+    if PRICE_CACHE_FILE.exists():
+        age = dt.datetime.now().timestamp() - PRICE_CACHE_FILE.stat().st_mtime
+        if age < PRICE_CACHE_TTL_SECONDS:
+            print(f"[INFO] Using cached price data ({int(age / 60)}m old) — skipping download.")
+            with open(PRICE_CACHE_FILE, "rb") as f:
+                return pickle.load(f)
+
     print(f"[INFO] Downloading price data for {len(tickers)} tickers ...")
     end = dt.date.today()
     start = end - dt.timedelta(days=90)  # ~3 months for MA calcs
@@ -69,6 +86,12 @@ def fetch_yfinance_data(tickers: list[str]) -> pd.DataFrame:
         auto_adjust=True,
         threads=True,
     )
+
+    # Persist to cache
+    with open(PRICE_CACHE_FILE, "wb") as f:
+        pickle.dump(data, f)
+    print(f"[INFO] Price data cached to {PRICE_CACHE_FILE}")
+
     return data
 
 
@@ -130,92 +153,97 @@ def compute_momentum_and_volume(data: pd.DataFrame, tickers: list[str]) -> pd.Da
 
 def fetch_earnings_calendar(tickers: list[str]) -> dict[str, int]:
     """Return dict of ticker -> days until next earnings (if within 10 days).
-    Uses yfinance calendar data.
+    Uses Finnhub /calendar/earnings — single API call for the full date range.
     """
-    print("[INFO] Checking earnings dates ...")
-    earnings_proximity = {}
-    today = dt.date.today()
+    if not FINNHUB_API_KEY:
+        print("[INFO] No Finnhub API key — skipping earnings calendar.")
+        return {}
 
-    for t in tickers:
-        try:
-            stock = yf.Ticker(t)
-            cal = stock.calendar
-            if cal is not None and not cal.empty:
-                # calendar can be a DataFrame with columns or a dict
-                if isinstance(cal, pd.DataFrame):
-                    if "Earnings Date" in cal.columns:
-                        ed = pd.to_datetime(cal["Earnings Date"].iloc[0]).date()
-                    elif "Earnings Date" in cal.index:
-                        ed = pd.to_datetime(cal.loc["Earnings Date"].iloc[0]).date()
-                    else:
-                        continue
-                elif isinstance(cal, dict):
-                    if "Earnings Date" in cal:
-                        dates = cal["Earnings Date"]
-                        ed = dates[0].date() if hasattr(dates[0], "date") else dates[0]
-                    else:
-                        continue
-                else:
-                    continue
+    print("[INFO] Fetching earnings calendar from Finnhub ...")
+    today = dt.date.today()
+    to_date = today + dt.timedelta(days=10)
+    url = (
+        f"https://finnhub.io/api/v1/calendar/earnings"
+        f"?from={today}&to={to_date}&token={FINNHUB_API_KEY}"
+    )
+    try:
+        resp = requests.get(url, timeout=15)
+        data = resp.json()
+        ticker_set = set(tickers)
+        earnings_proximity = {}
+        for event in data.get("earningsCalendar", []):
+            symbol = event.get("symbol", "")
+            date_str = event.get("date", "")
+            if symbol in ticker_set and date_str:
+                ed = dt.date.fromisoformat(date_str)
                 days_until = (ed - today).days
                 if 0 <= days_until <= 10:
-                    earnings_proximity[t] = days_until
-        except Exception:
-            continue
-    return earnings_proximity
+                    earnings_proximity[symbol] = days_until
+        return earnings_proximity
+    except Exception as e:
+        print(f"[WARN] Finnhub earnings calendar failed: {e}")
+        return {}
+
+
+# Keyword sets for headline sentiment scoring
+_BULLISH = {
+    "beats", "beat", "surges", "surge", "jumps", "jump", "rises", "rise",
+    "rallies", "rally", "upgrade", "upgraded", "outperform", "record",
+    "growth", "profit", "raises", "raised", "positive", "bullish", "gains",
+    "gain", "breakout", "soars", "soar", "strong", "expands", "expansion",
+}
+_BEARISH = {
+    "misses", "miss", "falls", "fall", "drops", "drop", "slips", "slip",
+    "downgrade", "downgraded", "underperform", "loss", "cuts", "cut",
+    "negative", "bearish", "declines", "decline", "warning", "lawsuit",
+    "investigation", "recall", "layoffs", "layoff", "weak", "disappoints",
+}
+
+
+def _score_headline(text: str) -> float:
+    """Score a news snippet -1.0 (bearish) to +1.0 (bullish) via keywords."""
+    words = set(text.lower().split())
+    bull = len(words & _BULLISH)
+    bear = len(words & _BEARISH)
+    if bull + bear == 0:
+        return 0.0
+    return (bull - bear) / (bull + bear)
 
 
 def fetch_news_sentiment(tickers: list[str]) -> dict[str, float]:
-    """Fetch sentiment signal from NewsAPI (if key provided).
+    """Fetch company news via Finnhub and score headlines with keyword analysis.
     Returns dict of ticker -> sentiment score (-1 to 1).
-    Falls back to Alpha Vantage news sentiment if NewsAPI unavailable.
+    Free tier: 60 req/min — sleeps 1 s between calls.
     """
-    sentiment = {}
+    if not FINNHUB_API_KEY:
+        print("[INFO] No Finnhub API key — skipping news sentiment.")
+        return {}
 
-    if ALPHA_VANTAGE_API_KEY and ALPHA_VANTAGE_API_KEY != "your_alpha_vantage_key_here":
-        print("[INFO] Fetching news sentiment from Alpha Vantage ...")
-        # Alpha Vantage NEWS_SENTIMENT endpoint — batch up to 50 tickers
-        for i in range(0, len(tickers), 50):
-            batch = tickers[i : i + 50]
-            ticker_str = ",".join(batch)
-            url = (
-                f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT"
-                f"&tickers={ticker_str}&apikey={ALPHA_VANTAGE_API_KEY}"
-            )
-            try:
-                resp = requests.get(url, timeout=30)
-                data = resp.json()
-                for item in data.get("feed", []):
-                    for ts in item.get("ticker_sentiment", []):
-                        tk = ts["ticker"]
-                        score = float(ts.get("ticker_sentiment_score", 0))
-                        if tk in sentiment:
-                            sentiment[tk] = (sentiment[tk] + score) / 2
-                        else:
-                            sentiment[tk] = score
-            except Exception:
-                pass
-            time.sleep(1)  # rate limit
-    elif NEWS_API_KEY and NEWS_API_KEY != "your_newsapi_key_here":
-        print("[INFO] Fetching news sentiment from NewsAPI ...")
-        # Simple heuristic: count articles per ticker in last 24h
-        for t in tickers[:30]:  # limit to avoid rate limits on free tier
-            url = (
-                f"https://newsapi.org/v2/everything?"
-                f"q={t}&from={dt.date.today() - dt.timedelta(days=1)}"
-                f"&sortBy=relevancy&pageSize=5&apiKey={NEWS_API_KEY}"
-            )
-            try:
-                resp = requests.get(url, timeout=10)
-                data = resp.json()
-                count = data.get("totalResults", 0)
-                # Normalize: more articles = more buzz, cap at 1.0
-                sentiment[t] = min(count / 20, 1.0)
-            except Exception:
-                pass
-            time.sleep(0.5)
-    else:
-        print("[INFO] No news API key configured — skipping sentiment.")
+    batch = tickers[:50]
+    print(f"[INFO] Fetching news sentiment from Finnhub for {len(batch)} tickers ...")
+    sentiment = {}
+    today = dt.date.today()
+    from_date = (today - dt.timedelta(days=3)).isoformat()
+    to_date = today.isoformat()
+
+    for i, t in enumerate(batch):
+        url = (
+            f"https://finnhub.io/api/v1/company-news"
+            f"?symbol={t}&from={from_date}&to={to_date}&token={FINNHUB_API_KEY}"
+        )
+        try:
+            resp = requests.get(url, timeout=10)
+            articles = resp.json()
+            if isinstance(articles, list) and articles:
+                scores = [
+                    _score_headline(a.get("headline", "") + " " + a.get("summary", ""))
+                    for a in articles[:10]
+                ]
+                sentiment[t] = sum(scores) / len(scores)
+        except Exception as e:
+            print(f"[WARN] Finnhub news failed for {t}: {e}")
+        if i < len(batch) - 1:
+            time.sleep(1.1)  # stay within 60 req/min free tier
 
     return sentiment
 
@@ -313,13 +341,12 @@ def main():
         print("[ERROR] No data — check your internet connection.")
         sys.exit(1)
 
-    # 2. Earnings calendar
-    # Only check earnings for top momentum stocks to save time
-    top_momentum = df.nlargest(100, "momentum_score")["ticker"].tolist()
-    earnings = fetch_earnings_calendar(top_momentum)
+    # 2. Earnings calendar — Finnhub returns all in one API call
+    earnings = fetch_earnings_calendar(tickers)
     print(f"[INFO] {len(earnings)} stocks with earnings within 10 days")
 
-    # 3. News sentiment
+    # 3. News sentiment — per-ticker Finnhub calls, limited to top momentum
+    top_momentum = df.nlargest(50, "momentum_score")["ticker"].tolist()
     sentiment = fetch_news_sentiment(top_momentum)
     print(f"[INFO] Got sentiment for {len(sentiment)} tickers")
 

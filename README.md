@@ -15,15 +15,14 @@ cp .env.example .env
 
 | Service | Purpose | Optional? | Get Key |
 |---------|---------|-----------|---------|
-| Alpha Vantage | News sentiment + technicals | ✅ Optional | https://www.alphavantage.co/support/#api-key |
+| Finnhub | Earnings calendar + news sentiment | ✅ Optional | https://finnhub.io/dashboard |
 | Anthropic | Direct API calls from scripts | ✅ Optional* | https://console.anthropic.com/ |
-| NewsAPI | Fallback sentiment source | ✅ Optional | https://newsapi.org/ |
 
 **Key points:**
 - The screener works **without any keys** — yfinance provides price/volume/RSI data freely.
 - **Using Claude Code?** You don't need Anthropic. The scripts fall back to a template briefing, and you analyze candidates interactively in the chat.
 - **Running scripts standalone?** Add an Anthropic key if you want the scripts to call Claude directly. Otherwise you get rule-based analysis.
-- Alpha Vantage adds news sentiment scoring (optional; free tier available).
+- Finnhub adds earnings calendar data and news sentiment scoring (optional; free tier: 60 req/min, no daily cap).
 
 ---
 
@@ -111,7 +110,7 @@ Each stock is scored 0–1 on five signals:
 | Volume surge | 20% | Today's volume 2x+ the 30-day average |
 | RSI | 20% | RSI between 55–75 (bullish momentum, not overbought) |
 | Earnings proximity | 15% | Earnings in 2–5 days — prime for a pre-earnings run-up |
-| Sentiment | 15% | Positive news coverage (requires API key) |
+| Sentiment | 15% | Positive news coverage via Finnhub (requires API key) |
 
 **Composite score guide:**
 - `> 0.70` — Strong candidate, warrants analysis
