@@ -262,24 +262,26 @@ def score_stocks(df: pd.DataFrame, earnings: dict, sentiment: dict) -> pd.DataFr
     else:
         df["momentum_norm"] = 0.5
 
-    # Volume surge: cap at 5x and normalize
-    df["volume_norm"] = (df["volume_surge"].clip(upper=5) - 1) / 4
+    # Volume surge: cap at 10x — reward massive spikes that signal institutional activity
+    df["volume_norm"] = (df["volume_surge"].clip(upper=10) - 1) / 9
 
-    # RSI score: sweet spot is 55-75 (bullish but not overbought)
-    # Score peaks at RSI=65, drops off < 40 or > 85
+    # RSI score: favour breakout momentum (65-85 is the power zone for aggressive plays)
+    # High RSI is a FEATURE not a bug — it means the stock is running
     def rsi_score(rsi):
-        if 55 <= rsi <= 75:
-            return 1.0
+        if 65 <= rsi <= 85:
+            return 1.0   # breakout power zone
+        elif 55 <= rsi < 65:
+            return 0.75  # building momentum
+        elif 85 < rsi <= 95:
+            return 0.6   # extended but still running
         elif 45 <= rsi < 55:
-            return 0.6
-        elif 75 < rsi <= 85:
-            return 0.5
-        elif rsi > 85:
-            return 0.1  # overbought
+            return 0.35
+        elif rsi > 95:
+            return 0.2   # blow-off top risk
         elif rsi < 30:
-            return 0.3  # oversold bounce potential
+            return 0.3   # oversold bounce potential
         else:
-            return 0.2
+            return 0.1
 
     df["rsi_norm"] = df["rsi"].apply(rsi_score)
 

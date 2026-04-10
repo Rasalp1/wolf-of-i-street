@@ -30,11 +30,11 @@ The screener runs fine with **no API keys** using yfinance alone. The Finnhub ke
 ## Portfolio rules (always enforce these)
 
 - **Capital:** $1,000,000 (Investopedia default)
-- **Max positions:** 8 at any time
-- **Position size:** ~$150,000–200,000 per position
-- **Stop-loss:** hard cut at **-8%** on any position
+- **Max positions:** 5 at any time (concentrated for maximum upside per winner)
+- **Position size:** $200,000 per position (5 × $200k = $1M fully deployed)
+- **Stop-loss:** hard cut at **-15%** — wide stops to survive volatile breakout moves
 - **Re-evaluate:** every afternoon — run portfolio tracker to check alerts
-- **Strategy:** concentrated positions, not diversification
+- **Strategy:** maximum concentration, swing for the fences, this is a simulator
 
 ## Scoring model
 
@@ -42,11 +42,11 @@ Each S&P 500 stock is scored on five signals weighted as follows:
 
 | Signal | Weight | Logic |
 |--------|--------|-------|
-| Momentum | 30% | % above 20/50-day MA + proximity to 52-week high |
-| Volume surge | 20% | Today's volume vs 30-day average |
-| RSI | 20% | Sweet spot 55–75 (bullish, not overbought) |
+| Momentum | 35% | % above 20/50-day MA + proximity to 52-week high |
+| Volume surge | 30% | Today's volume vs 30-day average (capped at 10x) |
+| RSI | 15% | Breakout power zone 65–85 scores highest |
 | Earnings proximity | 15% | 1.0 = earnings in 2–5 days (sweet spot for run-up) |
-| News sentiment | 15% | Finnhub company news, keyword-scored |
+| News sentiment | 5% | Finnhub company news, keyword-scored |
 
 Weights are configurable in `config.py`.
 

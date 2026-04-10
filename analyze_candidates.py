@@ -28,12 +28,13 @@ def load_top_candidates(n: int = 10) -> pd.DataFrame:
 
 def build_analysis_prompt(row: pd.Series, portfolio_context: str) -> str:
     """Build a prompt for Claude to analyze a single stock candidate."""
-    return f"""You are an aggressive short-term swing trading analyst for a 3-week stock market simulator competition. 
-The portfolio has ${TOTAL_CAPITAL:,} total capital. The goal is to maximize returns — capital preservation is NOT a priority.
-We are always fully invested (no idle cash), use $125,000 per position across up to 8 slots, and tolerate a -12% stop-loss.
-Bias strongly toward action: if a stock has any compelling signal, recommend buying it.
+    return f"""You are a high-conviction short-term trader running a stock simulator competition with a 2-week window.
+This is NOT real money — the ONLY goal is maximum return percentage. Capital preservation is irrelevant.
+Portfolio: ${TOTAL_CAPITAL:,} total, 5 concentrated positions at $200,000 each, -15% stop-loss.
+Think like a hedge fund running a 2-week sprint: swing for the fences, pick the stocks most likely to make explosive moves.
+High RSI, extended charts, and overbought conditions are fine — momentum is the edge here.
 
-Analyze this stock candidate and provide a concise trading recommendation:
+Analyze this candidate:
 
 **{row['ticker']}** — ${row['last_price']}
 - Price vs 20-day MA: {row['pct_above_20ma']}%
@@ -49,13 +50,13 @@ Current portfolio context:
 {portfolio_context}
 
 Provide your analysis in this exact format:
-**Thesis:** [1-2 sentence bull case]
+**Thesis:** [1-2 sentence bull case — why will this make a big move in the next 1-10 days?]
 **Strategy bucket:** [Momentum play / Catalyst trade / Sentiment swing]
-**Key risks:** [1-2 biggest risks]
+**Key risks:** [1 biggest risk]
 **Entry:** [Buy now / Wait for dip to $X / Skip]
-**Target exit:** [$X or +X%]
-**Stop-loss:** [$X or -8%]
-**Position size:** [$125,000 of ${TOTAL_CAPITAL:,} total — always full slot unless price makes it impractical]
+**Target exit:** [$X or +X% — aim for +15-25% on big setups]
+**Stop-loss:** [-15%]
+**Position size:** [$200,000 of ${TOTAL_CAPITAL:,} total]
 **Conviction:** [High / Medium / Low]
 **Time horizon:** [X days]"""
 
@@ -113,15 +114,15 @@ def generate_template_briefing(candidates: pd.DataFrame) -> list[dict]:
         else:
             bucket = "Momentum play"
 
-        target_pct = "+10%" if row["momentum_score"] > 0.5 else "+6%"
+        target_pct = "+20%" if row["composite_score"] > 0.7 else "+15%"
         conviction = "High" if row["composite_score"] > 0.7 else "Medium" if row["composite_score"] > 0.5 else "Low"
 
-        analysis = f"""**Thesis:** {row['ticker']} showing strong composite score of {row['composite_score']:.3f} with {row['pct_above_20ma']}% above 20-day MA.
+        analysis = f"""**Thesis:** {row['ticker']} showing composite score of {row['composite_score']:.3f} with {row['pct_above_20ma']}% above 20-day MA and {row['volume_surge']}x volume surge — momentum candidate for explosive near-term move.
 **Strategy bucket:** {bucket}
-**Key risks:** Mean reversion if extended; broader market pullback.
-**Entry:** Evaluate at market open
+**Key risks:** Broad market reversal.
+**Entry:** Buy at market open
 **Target exit:** {target_pct}
-**Stop-loss:** -8%
+**Stop-loss:** -15%
 **Position size:** ${POSITION_SIZE:,} ({POSITION_SIZE / TOTAL_CAPITAL * 100:.0f}% of portfolio)
 **Conviction:** {conviction}
 **Time horizon:** 3-7 days"""

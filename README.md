@@ -1,4 +1,4 @@
-# 🐺 Wolf of iStreet — Investopedia Simulator Trading System
+# 🐺 Wolf of I-Street — Investopedia Simulator Trading System
 
 An AI-powered daily stock screening and analysis system for the Investopedia Stock Simulator competition. Designed to be run entirely through **Claude Code** — you interact via slash commands, Claude handles the scripts.
 
